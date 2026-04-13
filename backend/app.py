@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import requests
-import pandas as pd
+import csv
 import io
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -148,14 +148,24 @@ def download_report():
         if not report_data:
             return jsonify({'error': 'No data to download'}), 400
         
-        csv_data = []
+        # Create CSV using Python's built-in csv module
+        output = io.StringIO()
+        
+        # Define CSV headers
+        headers = ['Project', 'Test Run', 'Total Tests', 'Passed', 'Failed', 
+                   'Blocked', 'Untested', 'Skipped', 'Execution %', 'Pass %', 'Fail %']
+        
+        writer = csv.DictWriter(output, fieldnames=headers)
+        writer.writeheader()
+        
+        # Write data rows
         for item in report_data:
             execution_percentage = 0
             if item.get('totalTests', 0) > 0:
                 executed = item.get('passed', 0) + item.get('failed', 0) + item.get('blocked', 0)
                 execution_percentage = round((executed / item['totalTests']) * 100, 2)
             
-            csv_data.append({
+            writer.writerow({
                 'Project': item.get('project', ''),
                 'Test Run': item.get('testRun', ''),
                 'Total Tests': item.get('totalTests', 0),
@@ -169,17 +179,16 @@ def download_report():
                 'Fail %': item.get('failPercentage', 0)
             })
         
-        df = pd.DataFrame(csv_data)
-        
-        output = io.BytesIO()
-        df.to_csv(output, index=False)
+        # Convert StringIO to BytesIO for send_file
         output.seek(0)
+        byte_output = io.BytesIO(output.getvalue().encode('utf-8'))
+        byte_output.seek(0)
         
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f'browserstack_report_{timestamp}.csv'
         
         return send_file(
-            output,
+            byte_output,
             mimetype='text/csv',
             as_attachment=True,
             download_name=filename

@@ -159,7 +159,7 @@ function App() {
             <div className="h-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full"></div>
           </div>
           <p className="text-gray-600 mt-4 text-lg">
-            Generate comprehensive test reports with visual analytics
+            Generate comprehensive test reports with visual analytics across the projects
           </p>
         </div>
 

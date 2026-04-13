@@ -486,6 +486,25 @@ function App() {
         )}
 
       </div>
+      
+      {/* Footer */}
+      <footer className="mt-12 pb-8 text-center">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="border-t border-gray-200 pt-6">
+            <p className="text-sm text-gray-600">
+              Created by <span className="font-semibold text-gray-800">Abhyudaya Pathak</span>
+            </p>
+            <p className="text-sm text-gray-500 mt-1">
+              <a 
+                href="mailto:contact.abhyudaya@gmail.com" 
+                className="hover:text-blue-600 transition-colors"
+              >
+                contact.abhyudaya@gmail.com
+              </a>
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

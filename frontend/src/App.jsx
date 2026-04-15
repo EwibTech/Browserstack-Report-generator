@@ -28,6 +28,8 @@ function App() {
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState('');
   const [filters, setFilters] = useState({
     project: ''
   });
@@ -68,18 +70,54 @@ function App() {
 
     setLoading(true);
     setError('');
+    setProgress(0);
+    setProgressMessage('Starting...');
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/generate-report`, formData);
-      
-      if (response.data.success) {
-        setReportData(response.data.data);
-        setFilteredData(response.data.data);
-        setStep('report');
+      const response = await fetch(`${API_BASE_URL}/generate-report-stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
+            
+            if (data.error) {
+              setError(data.error);
+              setLoading(false);
+              return;
+            }
+            
+            if (data.progress !== undefined) {
+              setProgress(data.progress);
+              setProgressMessage(data.message || '');
+            }
+            
+            if (data.complete && data.data) {
+              setReportData(data.data);
+              setFilteredData(data.data);
+              setStep('report');
+              setLoading(false);
+            }
+          }
+        }
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to generate report');
-    } finally {
+      setError(err.message || 'Failed to generate report');
       setLoading(false);
     }
   };
@@ -222,6 +260,25 @@ function App() {
                   </p>
                 </div>
               </div>
+
+              {loading && (
+                <div className="space-y-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-blue-900">Progress: {progress}%</span>
+                    <span className="text-blue-700">{progressMessage}</span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-3 overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-blue-500 to-indigo-600 h-3 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-blue-700">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>This may take a few minutes depending on the number of projects...</span>
+                  </div>
+                </div>
+              )}
 
               <Button 
                 onClick={generateReport} 

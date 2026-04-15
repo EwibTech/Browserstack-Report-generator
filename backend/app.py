@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, Response, stream_with_context
 from flask_cors import CORS
 import requests
 import csv
@@ -9,6 +9,7 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 import os
+import json
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -66,6 +67,109 @@ def get_test_run_details(project_id, test_run_id, username, access_key):
     response = requests.get(url, auth=auth)
     response.raise_for_status()
     return response.json()
+
+@app.route('/api/generate-report-stream', methods=['POST'])
+def generate_report_stream():
+    """Generate report with real-time progress updates via Server-Sent Events"""
+    def generate():
+        try:
+            data = request.json
+            username = data.get('username')
+            access_key = data.get('accessKey')
+            test_run_filter = data.get('testRunFilter', '')
+            
+            if not username or not access_key:
+                yield f"data: {json.dumps({'error': 'Username and access key are required'})}\n\n"
+                return
+            
+            # Send initial progress
+            yield f"data: {json.dumps({'progress': 0, 'message': 'Connecting to BrowserStack...'})}\n\n"
+            
+            try:
+                projects_response = get_projects(username, access_key)
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 401:
+                    yield f"data: {json.dumps({'error': 'Invalid BrowserStack credentials. Please check your username and access key.'})}\n\n"
+                elif e.response.status_code == 403:
+                    yield f"data: {json.dumps({'error': 'Access forbidden. Please verify your BrowserStack account permissions.'})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'error': f'BrowserStack API error: {str(e)}'})}\n\n"
+                return
+            
+            projects = projects_response.get("projects", [])
+            total_projects = len(projects)
+            
+            yield f"data: {json.dumps({'progress': 10, 'message': f'Found {total_projects} projects. Fetching test runs...'})}\n\n"
+            
+            report_data = []
+            processed_projects = 0
+            
+            for project in projects:
+                project_id = project.get("identifier")
+                project_name = project.get("name")
+                
+                try:
+                    test_runs_response = get_test_runs(project_id, username, access_key)
+                    test_runs = test_runs_response.get("test_runs", [])
+                    
+                    matching_runs = [run for run in test_runs if not test_run_filter or test_run_filter.lower() in run.get("name", "").lower()]
+                    
+                    for idx, run in enumerate(matching_runs):
+                        run_id = run.get("identifier")
+                        run_name = run.get("name", "")
+                        run_state = run.get("run_state")
+                        active_state = run.get("active_state")
+                        
+                        # Calculate progress
+                        processed_projects += 1
+                        progress = 10 + int((processed_projects / max(total_projects, 1)) * 80)
+                        yield f"data: {json.dumps({'progress': min(progress, 90), 'message': f'Processing {project_name}: {run_name[:50]}...'})}\n\n"
+                        
+                        try:
+                            run_details_response = get_test_run_details(project_id, run_id, username, access_key)
+                            run_details = run_details_response.get("test_run", {})
+                            overall_progress = run_details.get("overall_progress", {})
+                            
+                            total_tests = run_details.get("test_cases_count", 0)
+                            passed = overall_progress.get("Passed", overall_progress.get("passed", 0))
+                            failed = overall_progress.get("Failed", overall_progress.get("failed", 0))
+                            blocked = overall_progress.get("Blocked", overall_progress.get("blocked", 0))
+                            untested = overall_progress.get("Untested", overall_progress.get("untested", 0))
+                            skipped = overall_progress.get("Skipped", overall_progress.get("skipped", 0))
+                            
+                            if total_tests == 0:
+                                total_tests = passed + failed + blocked + untested + skipped
+                            
+                            pass_percentage = round((passed / total_tests * 100), 2) if total_tests > 0 else 0
+                            fail_percentage = round((failed / total_tests * 100), 2) if total_tests > 0 else 0
+                            
+                            report_data.append({
+                                "project": project_name,
+                                "testRun": run_details.get("name", run_id),
+                                "activeState": active_state,
+                                "runState": run_state,
+                                "totalTests": total_tests,
+                                "passed": passed,
+                                "failed": failed,
+                                "blocked": blocked,
+                                "untested": untested,
+                                "skipped": skipped,
+                                "passPercentage": pass_percentage,
+                                "failPercentage": fail_percentage
+                            })
+                        except Exception as e:
+                            print(f"Error fetching details for run {run_id}: {e}")
+                            
+                except Exception as e:
+                    print(f"Error fetching project {project_name}: {e}")
+            
+            # Send completion
+            yield f"data: {json.dumps({'progress': 100, 'message': 'Report generated successfully!', 'data': report_data, 'totalRuns': len(report_data), 'complete': True})}\n\n"
+            
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+    
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 @app.route('/api/generate-report', methods=['POST'])
 def generate_report():

@@ -78,7 +78,15 @@ def generate_report():
         if not username or not access_key:
             return jsonify({'error': 'Username and access key are required'}), 400
         
-        projects_response = get_projects(username, access_key)
+        try:
+            projects_response = get_projects(username, access_key)
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                return jsonify({'error': 'Invalid BrowserStack credentials. Please check your username and access key.'}), 401
+            elif e.response.status_code == 403:
+                return jsonify({'error': 'Access forbidden. Please verify your BrowserStack account permissions.'}), 403
+            else:
+                return jsonify({'error': f'BrowserStack API error: {str(e)}'}), e.response.status_code
         projects = projects_response.get("projects", [])
         report_data = []
         

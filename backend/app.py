@@ -83,23 +83,28 @@ def generate_report_stream():
                 return
             
             # Send initial progress
-            yield f"data: {json.dumps({'progress': 0, 'message': 'Connecting to BrowserStack...'})}\n\n"
+            initial_data = {'progress': 0, 'message': 'Connecting to BrowserStack...'}
+            yield f"data: {json.dumps(initial_data)}\n\n"
             
             try:
                 projects_response = get_projects(username, access_key)
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 401:
-                    yield f"data: {json.dumps({'error': 'Invalid BrowserStack credentials. Please check your username and access key.'})}\n\n"
+                    error_data = {'error': 'Invalid BrowserStack credentials. Please check your username and access key.'}
+                    yield f"data: {json.dumps(error_data)}\n\n"
                 elif e.response.status_code == 403:
-                    yield f"data: {json.dumps({'error': 'Access forbidden. Please verify your BrowserStack account permissions.'})}\n\n"
+                    error_data = {'error': 'Access forbidden. Please verify your BrowserStack account permissions.'}
+                    yield f"data: {json.dumps(error_data)}\n\n"
                 else:
-                    yield f"data: {json.dumps({'error': f'BrowserStack API error: {str(e)}'})}\n\n"
+                    error_data = {'error': f'BrowserStack API error: {str(e)}'}
+                    yield f"data: {json.dumps(error_data)}\n\n"
                 return
             
             projects = projects_response.get("projects", [])
             total_projects = len(projects)
             
-            yield f"data: {json.dumps({'progress': 10, 'message': f'Found {total_projects} projects. Fetching test runs...'})}\n\n"
+            projects_data = {'progress': 10, 'message': f'Found {total_projects} projects. Fetching test runs...'}
+            yield f"data: {json.dumps(projects_data)}\n\n"
             
             report_data = []
             processed_projects = 0
@@ -123,7 +128,12 @@ def generate_report_stream():
                         # Calculate progress
                         processed_projects += 1
                         progress = 10 + int((processed_projects / max(total_projects, 1)) * 80)
-                        yield f"data: {json.dumps({'progress': min(progress, 90), 'message': f'Processing {project_name}: {run_name[:50]}...'})}\n\n"
+                        message = f'Processing {project_name}: {run_name[:50]}...'
+                        progress_data = {
+                            'progress': min(progress, 90),
+                            'message': message
+                        }
+                        yield f"data: {json.dumps(progress_data)}\n\n"
                         
                         try:
                             run_details_response = get_test_run_details(project_id, run_id, username, access_key)
@@ -164,10 +174,18 @@ def generate_report_stream():
                     print(f"Error fetching project {project_name}: {e}")
             
             # Send completion
-            yield f"data: {json.dumps({'progress': 100, 'message': 'Report generated successfully!', 'data': report_data, 'totalRuns': len(report_data), 'complete': True})}\n\n"
+            completion_data = {
+                'progress': 100,
+                'message': 'Report generated successfully!',
+                'data': report_data,
+                'totalRuns': len(report_data),
+                'complete': True
+            }
+            yield f"data: {json.dumps(completion_data)}\n\n"
             
         except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            error_data = {'error': str(e)}
+            yield f"data: {json.dumps(error_data)}\n\n"
     
     return Response(stream_with_context(generate()), mimetype='text/event-stream')
 

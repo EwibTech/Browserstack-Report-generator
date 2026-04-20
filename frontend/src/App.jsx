@@ -22,7 +22,10 @@ function App() {
   const [formData, setFormData] = useState({
     username: '',
     accessKey: '',
-    testRunFilter: ''
+    testRunFilter: '',
+    includeClosed: 'active',
+    createdAfter: '',
+    createdBefore: ''
   });
   const [reportData, setReportData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
@@ -251,14 +254,60 @@ function App() {
                   value={formData.testRunFilter}
                   onChange={handleInputChange}
                 />
-                <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-md">
-                  <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-blue-800">
-                    <strong>Filter Usage:</strong> Enter a keyword to filter test runs by name. 
-                    Leave empty to fetch all test runs. The filter is case-insensitive and matches 
-                    test runs containing the specified text.
-                  </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="includeClosed">
+                  Test Run Status
+                </Label>
+                <select
+                  id="includeClosed"
+                  name="includeClosed"
+                  value={formData.includeClosed}
+                  onChange={handleInputChange}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="active">Active Only</option>
+                  <option value="closed">Closed Only</option>
+                  <option value="all">All (Active + Closed)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="createdAfter">
+                    Created After (Optional)
+                  </Label>
+                  <Input
+                    id="createdAfter"
+                    name="createdAfter"
+                    type="date"
+                    value={formData.createdAfter}
+                    onChange={handleInputChange}
+                  />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="createdBefore">
+                    Created Before (Optional)
+                  </Label>
+                  <Input
+                    id="createdBefore"
+                    name="createdBefore"
+                    type="date"
+                    value={formData.createdBefore}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-md">
+                <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-blue-800">
+                  <strong>⚡ Performance Tip:</strong> For faster results, use a narrow date range (1-3 days recommended). 
+                  Wider date ranges may take longer for projects with many test runs. 
+                  Combine with "Active Only" status and name filter for best performance.
+                </p>
               </div>
 
               {loading && (

@@ -54,12 +54,56 @@ def get_projects(username, access_key):
     
     return {"projects": all_projects}
 
-def get_test_runs(project_id, username, access_key):
+def get_test_runs(project_id, username, access_key, include_closed='active', created_after='', created_before=''):
     auth = (username, access_key)
-    url = f"{BASE_URL}/projects/{project_id}/test-runs"
-    response = requests.get(url, auth=auth)
-    response.raise_for_status()
-    return response.json()
+    all_test_runs = []
+    page = 1
+    
+    while True:
+        # Map frontend values to BrowserStack API parameters
+        if include_closed == 'active':
+            url = f"{BASE_URL}/projects/{project_id}/test-runs?include_closed=false&page={page}&page_size=300"
+        elif include_closed == 'closed':
+            url = f"{BASE_URL}/projects/{project_id}/test-runs?include_closed=true&run_state=closed&page={page}&page_size=300"
+        else:  # 'all'
+            url = f"{BASE_URL}/projects/{project_id}/test-runs?include_closed=true&page={page}&page_size=300"
+        
+        # Add date range filters if provided (format: YYYY-MM-DD)
+        if created_after:
+            url += f"&created_after={created_after}"
+        if created_before:
+            url += f"&created_before={created_before}"
+        
+        if page == 1:
+            print(f"DEBUG: Fetching test runs - URL: {url}")
+        
+        response = requests.get(url, auth=auth)
+        response.raise_for_status()
+        data = response.json()
+        
+        test_runs = data.get("test_runs", [])
+        print(f"DEBUG: Project {project_id}, Page {page}: Got {len(test_runs)} test runs")
+        
+        if not test_runs:
+            break
+        
+        all_test_runs.extend(test_runs)
+        
+        # Check if there are more pages (BrowserStack API returns max 30 per page)
+        if len(test_runs) < 30:
+            print(f"DEBUG: Last page for project {project_id} (got {len(test_runs)} < 30)")
+            break
+        
+        page += 1
+        
+        # Safety limit to prevent infinite loops
+        if page > 100:
+            print(f"WARNING: Reached page limit for project {project_id}")
+            break
+    
+    print(f"DEBUG: Total test runs fetched for project {project_id}: {len(all_test_runs)}")
+    
+    return {"test_runs": all_test_runs}
 
 def get_test_run_details(project_id, test_run_id, username, access_key):
     auth = (username, access_key)
@@ -77,6 +121,9 @@ def generate_report_stream():
             username = data.get('username')
             access_key = data.get('accessKey')
             test_run_filter = data.get('testRunFilter', '')
+            include_closed = data.get('includeClosed', 'active')
+            created_after = data.get('createdAfter', '')
+            created_before = data.get('createdBefore', '')
             
             if not username or not access_key:
                 yield f"data: {json.dumps({'error': 'Username and access key are required'})}\n\n"
@@ -114,7 +161,7 @@ def generate_report_stream():
                 project_name = project.get("name")
                 
                 try:
-                    test_runs_response = get_test_runs(project_id, username, access_key)
+                    test_runs_response = get_test_runs(project_id, username, access_key, include_closed, created_after, created_before)
                     test_runs = test_runs_response.get("test_runs", [])
                     
                     matching_runs = [run for run in test_runs if not test_run_filter or test_run_filter.lower() in run.get("name", "").lower()]

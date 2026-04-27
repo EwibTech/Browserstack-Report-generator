@@ -164,6 +164,7 @@ def generate_report_stream():
                     test_runs_response = get_test_runs(project_id, username, access_key, include_closed, created_after, created_before)
                     test_runs = test_runs_response.get("test_runs", [])
                     
+                    # Filter by test run name only
                     matching_runs = [run for run in test_runs if not test_run_filter or test_run_filter.lower() in run.get("name", "").lower()]
                     
                     for idx, run in enumerate(matching_runs):
@@ -200,9 +201,15 @@ def generate_report_stream():
                             pass_percentage = round((passed / total_tests * 100), 2) if total_tests > 0 else 0
                             fail_percentage = round((failed / total_tests * 100), 2) if total_tests > 0 else 0
                             
+                            # Get owner/assignee information (assignee is an email string)
+                            assignee = run_details.get("assignee", "")
+                            # Extract name from email (e.g., "john.doe@company.com" -> "john.doe")
+                            owner_name = assignee.split('@')[0].replace('.', ' ').title() if assignee else ""
+                            
                             report_data.append({
                                 "project": project_name,
                                 "testRun": run_details.get("name", run_id),
+                                "owner": owner_name,
                                 "activeState": active_state,
                                 "runState": run_state,
                                 "totalTests": total_tests,
@@ -336,7 +343,7 @@ def download_report():
         output = io.StringIO()
         
         # Define CSV headers
-        headers = ['Project', 'Test Run', 'Total Tests', 'Passed', 'Failed', 
+        headers = ['Project', 'Test Run', 'Owner', 'Total Tests', 'Passed', 'Failed', 
                    'Blocked', 'Untested', 'Skipped', 'Execution %', 'Pass %', 'Fail %']
         
         writer = csv.DictWriter(output, fieldnames=headers)
@@ -352,6 +359,7 @@ def download_report():
             writer.writerow({
                 'Project': item.get('project', ''),
                 'Test Run': item.get('testRun', ''),
+                'Owner': item.get('owner', ''),
                 'Total Tests': item.get('totalTests', 0),
                 'Passed': item.get('passed', 0),
                 'Failed': item.get('failed', 0),

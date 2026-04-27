@@ -57,8 +57,10 @@ function App() {
     let filtered = [...reportData];
     
     if (currentFilters.project) {
+      const searchTerm = currentFilters.project.toLowerCase();
       filtered = filtered.filter(item => 
-        item.project.toLowerCase().includes(currentFilters.project.toLowerCase())
+        item.project.toLowerCase().includes(searchTerm) ||
+        item.testRun.toLowerCase().includes(searchTerm)
       );
     }
     
@@ -375,14 +377,17 @@ function App() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <Label htmlFor="projectFilter">Project</Label>
+                  <Label htmlFor="projectFilter">Project / Test Run</Label>
                   <Input
                     id="projectFilter"
                     name="project"
-                    placeholder="Filter by project"
+                    placeholder="Search by project or test run name"
                     value={filters.project}
                     onChange={handleFilterChange}
                   />
+                  <p className="text-xs text-gray-500">
+                    Filters the table by project or test run name
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -528,6 +533,7 @@ function App() {
                       <tr>
                         <th className="px-4 py-4 text-left font-semibold text-gray-700 border-b-2 border-gray-200">Project</th>
                         <th className="px-4 py-4 text-left font-semibold text-gray-700 border-b-2 border-gray-200">Test Run</th>
+                        <th className="px-4 py-4 text-left font-semibold text-gray-700 border-b-2 border-gray-200">Owner</th>
                         <th className="px-4 py-4 text-right font-semibold text-gray-700 border-b-2 border-gray-200">Total</th>
                         <th className="px-4 py-4 text-right font-semibold text-gray-700 border-b-2 border-gray-200">Passed</th>
                         <th className="px-4 py-4 text-right font-semibold text-gray-700 border-b-2 border-gray-200">Failed</th>
@@ -549,6 +555,7 @@ function App() {
                           <tr key={index} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-colors">
                             <td className="px-4 py-4 font-medium text-gray-900">{item.project}</td>
                             <td className="px-4 py-4 text-gray-700">{item.testRun}</td>
+                            <td className="px-4 py-4 text-gray-600">{item.owner || '-'}</td>
                             <td className="px-4 py-4 text-right font-semibold text-gray-900">{item.totalTests}</td>
                             <td className="px-4 py-4 text-right text-green-600 font-bold">{item.passed}</td>
                             <td className="px-4 py-4 text-right text-red-600 font-bold">{item.failed}</td>
